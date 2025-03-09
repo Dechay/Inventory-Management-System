@@ -7,16 +7,18 @@ import {
   Button,
   Stack,
   Checkbox,
+  CircularProgress,
 } from "@mui/material";
 
 import CustomTextField from "@/app/(DashboardLayout)/components/forms/theme-elements/CustomTextField";
 
-interface loginType {
+export interface loginType {
   username: string;
   password: string;
   setUsername: Dispatch<SetStateAction<string>>;
   setPassword: Dispatch<SetStateAction<string>>;
-  handleSubmit: (e: React.FormEvent) => void;  // Accepts event
+  handleSubmit: (e: React.FormEvent) => void;
+  loading?: boolean;
   title?: string;
   subtitle?: JSX.Element | JSX.Element[];
   subtext?: JSX.Element | JSX.Element[];
@@ -28,6 +30,7 @@ const AuthLogin = ({
   setUsername,
   setPassword,
   handleSubmit,
+  loading = false,
   title,
   subtitle,
   subtext,
@@ -41,7 +44,6 @@ const AuthLogin = ({
 
     {subtext}
 
-    {/* Form now properly submits */}
     <form onSubmit={handleSubmit}>
       <Stack>
         <Box>
@@ -61,6 +63,7 @@ const AuthLogin = ({
             }
             variant="outlined"
             fullWidth
+            disabled={loading}
           />
         </Box>
         <Box mt="25px">
@@ -81,6 +84,7 @@ const AuthLogin = ({
             }
             variant="outlined"
             fullWidth
+            disabled={loading}
           />
         </Box>
         <Stack justifyContent="space-between" direction="row" alignItems="center" my={2}>
@@ -101,9 +105,19 @@ const AuthLogin = ({
         </Stack>
       </Stack>
       <Box>
-        {/* This button now properly submits the form */}
-        <Button color="primary" variant="contained" size="large" fullWidth type="submit">
-          Sign In
+        <Button
+          color="primary"
+          variant="contained"
+          size="large"
+          fullWidth
+          type="submit"
+          disabled={loading}
+        >
+          {loading ? (
+            <CircularProgress size={24} color="inherit" />
+          ) : (
+            "Sign In"
+          )}
         </Button>
       </Box>
     </form>

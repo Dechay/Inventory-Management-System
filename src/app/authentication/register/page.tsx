@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, ChangeEvent } from "react";
 import { Box, Typography, Button, CircularProgress, Card, Stack, Grid, Alert } from "@mui/material";
 import CustomTextField from "@/app/(DashboardLayout)/components/forms/theme-elements/CustomTextField";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const RegisterPage = () => {
     const [name, setName] = useState("");
-    const [username, setUsername] = useState(""); // ✅ Add username
+    const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,6 +16,7 @@ const RegisterPage = () => {
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const imageSrc = "/images/logos/Logo.png";
 
     useEffect(() => {
         if (success) {
@@ -27,51 +29,59 @@ const RegisterPage = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError("");
+        setLoading(true);
 
+        // Validate inputs
         if (!name || !username || !email || !password || !confirmPassword) {
-            setError("All fields are required."); // ✅ Validate username
+            setError("All fields are required");
+            setLoading(false);
             return;
         }
 
         if (password !== confirmPassword) {
-            setError("Passwords do not match.");
+            setError("Passwords do not match");
+            setLoading(false);
             return;
         }
-
-        setLoading(true);
-        setError("");
-        setSuccess(false);
-
-        const requestBody = { name, username, email, password }; // ✅ Include username
 
         try {
             const response = await fetch("/api/register", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(requestBody),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    name,
+                    username,
+                    email,
+                    password
+                }),
             });
 
             const data = await response.json();
-            console.log("API Response Data:", data); // Debugging
 
             if (!response.ok) {
-                if (data.errors && Array.isArray(data.errors)) {
-                    const errorMessages = data.errors.map((err: any) => err.message).join(", ");
-                    throw new Error(errorMessages);
-                }
-                throw new Error(data.message || "Registration failed. Please try again.");
+                throw new Error(data.error || "Registration failed");
             }
 
             setSuccess(true);
             setError("");
+            
+            // Clear form
             setName("");
-            setUsername(""); 
+            setUsername("");
             setEmail("");
             setPassword("");
             setConfirmPassword("");
+
+            // Redirect to login page after short delay
+            setTimeout(() => {
+                router.push("/authentication/login");
+            }, 1500);
+
         } catch (err: any) {
-            console.error("Registration error:", err);
-            setError(err.message || "An unexpected error occurred. Please try again.");
+            setError(err.message || "Registration failed");
             setSuccess(false);
         } finally {
             setLoading(false);
@@ -79,107 +89,119 @@ const RegisterPage = () => {
     };
 
     return (
-        <Box>
+        <Box
+            sx={{
+                position: "relative",
+                "&:before": {
+                    content: '""',
+                    background: "radial-gradient(#d2f1df, #d3d7fa, #bad8f4)",
+                    backgroundSize: "400% 400%",
+                    animation: "gradient 15s ease infinite",
+                    position: "absolute",
+                    height: "100%",
+                    width: "100%",
+                    opacity: "0.3",
+                },
+            }}
+        >
             <Grid container spacing={0} justifyContent="center" sx={{ height: "100vh" }}>
                 <Grid item xs={12} sm={12} lg={4} xl={3} display="flex" justifyContent="center" alignItems="center">
                     <Card elevation={9} sx={{ p: 4, zIndex: 1, width: "100%", maxWidth: "500px" }}>
-                        <Typography fontWeight="700" variant="h4" mb={1} textAlign="center">
+                        <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+                            <Image
+                                src={imageSrc}
+                                alt="Logo"
+                                width={185}
+                                height={50}
+                                priority
+                            />
+                        </Box>
+
+                        <Typography fontWeight="700" variant="h3" mb={1} textAlign="center">
                             Sign Up
                         </Typography>
 
-                        <Box component="form" onSubmit={handleSubmit} noValidate>
-                            <Stack mb={3}>
-                                {/* Name Field */}
-                                <Typography variant="subtitle1" fontWeight={600} component="label" htmlFor="name" mb="5px">
-                                    Name
-                                </Typography>
+                        {error && (
+                            <Alert severity="error" sx={{ mb: 2 }}>
+                                {error}
+                            </Alert>
+                        )}
+                        {success && (
+                            <Alert severity="success" sx={{ mb: 2 }}>
+                                Registration successful! Redirecting to login...
+                            </Alert>
+                        )}
+
+                        <form onSubmit={handleSubmit}>
+                            <Stack spacing={2}>
                                 <CustomTextField
-                                    id="name"
+                                    label="Name"
                                     variant="outlined"
                                     fullWidth
                                     value={name}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-                                    required
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                                     disabled={loading}
                                 />
-
-                                {/* Username Field */}
-                                <Typography variant="subtitle1" fontWeight={600} component="label" htmlFor="username" mb="5px" mt="25px">
-                                    Username
-                                </Typography>
                                 <CustomTextField
-                                    id="username"
+                                    label="Username"
                                     variant="outlined"
                                     fullWidth
                                     value={username}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                                    required
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
                                     disabled={loading}
                                 />
-
-                                {/* Email Field */}
-                                <Typography variant="subtitle1" fontWeight={600} component="label" htmlFor="email" mb="5px" mt="25px">
-                                    Email Address
-                                </Typography>
                                 <CustomTextField
-                                    id="email"
+                                    label="Email"
                                     variant="outlined"
                                     fullWidth
-                                    value={email}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                                     type="email"
-                                    required
+                                    value={email}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                                     disabled={loading}
                                 />
-
-                                {/* Password Field */}
-                                <Typography variant="subtitle1" fontWeight={600} component="label" htmlFor="password" mb="5px" mt="25px">
-                                    Password
-                                </Typography>
                                 <CustomTextField
-                                    id="password"
-                                    type="password"
+                                    label="Password"
                                     variant="outlined"
                                     fullWidth
+                                    type="password"
                                     value={password}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                                    required
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                                     disabled={loading}
                                 />
-
-                                {/* Confirm Password Field */}
-                                <Typography variant="subtitle1" fontWeight={600} component="label" htmlFor="confirmPassword" mb="5px" mt="25px">
-                                    Confirm Password
-                                </Typography>
                                 <CustomTextField
-                                    id="confirmPassword"
-                                    type="password"
+                                    label="Confirm Password"
                                     variant="outlined"
                                     fullWidth
+                                    type="password"
                                     value={confirmPassword}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
-                                    required
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                                     disabled={loading}
                                 />
                             </Stack>
 
-                            {/* Display error or success message */}
-                            {error && (
-                                <Alert severity="error" sx={{ mb: 2 }}>
-                                    {error}
-                                </Alert>
-                            )}
-                            {success && (
-                                <Alert severity="success" sx={{ mb: 2 }}>
-                                    Registration successful! Redirecting...
-                                </Alert>
-                            )}
-
-                            {/* Submit Button */}
-                            <Button color="primary" variant="contained" size="large" fullWidth type="submit" disabled={loading}>
-                                {loading ? <CircularProgress size={24} color="inherit" /> : "Sign Up"}
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                color="primary"
+                                fullWidth
+                                size="large"
+                                disabled={loading}
+                                sx={{ mt: 2 }}
+                            >
+                                {loading ? <CircularProgress size={24} /> : "Sign Up"}
                             </Button>
-                        </Box>
+
+                            <Typography textAlign="center" mt={2}>
+                                Already have an account?{" "}
+                                <Typography
+                                    component="a"
+                                    href="/authentication/login"
+                                    sx={{ textDecoration: "none", color: "primary.main" }}
+                                >
+                                    Sign In
+                                </Typography>
+                            </Typography>
+                        </form>
                     </Card>
                 </Grid>
             </Grid>

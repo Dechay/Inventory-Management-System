@@ -1,80 +1,101 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { z } from "zod";
-
-// Define schema with `.strict()` to avoid extra fields
-const userSchema = z
-    .object({
-        name: z.string().min(1, "Name is required"),
-        email: z.string().email("Invalid email address"),
-        username: z.string().min(1, "Username is required"), // Add username to schema
-        password: z.string().min(6, "Password must be at least 6 characters long"),
-    })
-    .strict();
+import prisma from "@/lib/prisma";
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const { name, username, email, password } = body;
 
-        // Validate input
-        const validationResult = userSchema.safeParse(body);
-        if (!validationResult.success) {
+        // Validate required fields
+        if (!name || !username || !email || !password) {
             return NextResponse.json(
-                { message: "Validation failed", errors: validationResult.error.errors },
+                { 
+                    success: false,
+                    error: "All fields are required" 
+                },
                 { status: 400 }
             );
         }
 
-        const { name, email, username, password } = validationResult.data; // Use validated data
-
-        // Check if user already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
+        // Check if email or username already exists
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { username }
+                ]
+            }
         });
 
         if (existingUser) {
             return NextResponse.json(
-                { message: "User already exists" },
-                { status: 409 } // 409 Conflict instead of 400
+                { 
+                    success: false,
+                    error: existingUser.email === email 
+                        ? "Email already exists" 
+                        : "Username already exists" 
+                },
+                { status: 400 }
             );
         }
 
-        // Hash password before storing
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create new user
-        const newUser = await prisma.user.create({
+        // Create user
+        const user = await prisma.user.create({
             data: {
                 name,
-                email,
                 username,
+                email,
                 password: hashedPassword,
+                role: "USER"  // Default role
             },
         });
 
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = user;
+
         return NextResponse.json(
             {
+                success: true,
                 message: "User registered successfully",
-                user: {
-                    id: newUser.id,
-                    name: newUser.name,
-                    email: newUser.email,
-                    username: newUser.username,
-                }, // Exclude password for security
+                user: userWithoutPassword
             },
-            { status: 201 }
+            { 
+                status: 201,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
         );
     } catch (error: any) {
         console.error("Registration error:", error);
 
-        // Avoid exposing sensitive error details in production
+        // Handle Prisma specific errors
+        if (error.code === 'P2002') {
+            return NextResponse.json(
+                { 
+                    success: false,
+                    error: "Username or email already exists" 
+                },
+                { status: 400 }
+            );
+        }
+
+        // Generic error response
         return NextResponse.json(
-            {
-                message: "Something went wrong. Please try again later.",
-                error: process.env.NODE_ENV === "development" ? error.message : "Internal server error",
+            { 
+                success: false,
+                error: "Failed to register user" 
             },
-            { status: 500 }
+            { 
+                status: 500,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
         );
     }
 }

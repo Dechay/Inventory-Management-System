@@ -7,77 +7,183 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String        @id @default(uuid())
-  username     String        @unique @default(uuid())
-  name         String
-  email        String        @unique
-  password     String
-  reports      Report[] // Relationship with Report model
-  itemsUpdated ItemHistory[] // Relationship with ItemHistory model
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+enum ItemStatus {
+  INSTOCK
+  OUTSTOCK
+}
+
+enum PaymentMode {
+  CASH
+  CREDIT
+  ONLINE
 }
 
 model Item {
-  id          Int           @id @default(autoincrement())
-  itemType    String
-  itemName    String
-  modelNumber String
-  quantity    Int
-  price       Float
-  history     ItemHistory[] // Relationship with ItemHistory model
+  id                Int               @id @default(autoincrement())
+  itemName          String
+  moduleNo          String?
+  serialNo          String?
+  price             Float
+  description       String?
+  uom               String?
+  quantity          Int              @default(0)
+  unit              String?
+  categoryId        Int
+  supplierName      String?
+  availability      ItemStatus       @default(INSTOCK)
+  category          Category         @relation(fields: [categoryId], references: [id])
+  sales             Sale[]
+  purchaseItems     PurchaseItem[]   @relation("ItemToPurchaseItem")
+  salesInvoiceItems SalesInvoiceItem[] @relation("ItemToSalesInvoiceItem")
+  issueItems        IssueItem[]      @relation("ItemToIssueItem")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@map("items")
 }
 
-model ItemHistory {
-  id          String   @id @default(uuid())
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  items     Item[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Supplier {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  contact   String?
+  email     String?
+  address   String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+model Purchase {
+  id                Int           @id @default(autoincrement())
+  invoiceTo         String
+  date              DateTime
+  voucherNo         String
+  referenceNo       String?       
+  consignee         String?       
+  paymentMode       PaymentMode
+  supplierId        Int
+  dispatchedThrough String?       
+  termsOfDelivery   String?       
+  destination       String?       
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  supplier          Supplier      @relation(fields: [supplierId], references: [id])
+  purchaseItems     PurchaseItem[]
+}
+
+model PurchaseItem {
+  id          Int      @id @default(autoincrement())
+  purchaseId  Int
   itemId      Int
-  updatedById String
-  changeDate  DateTime @default(now())
-
-  item      Item @relation(fields: [itemId], references: [id])
-  updatedBy User @relation(fields: [updatedById], references: [id])
+  description String?  
+  receivedBy  String?  
+  date        DateTime
+  quantity    Int
+  rate        Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  item        Item     @relation("ItemToPurchaseItem", fields: [itemId], references: [id])
 }
 
-model Report {
-  id            String     @id @default(uuid())
-  reportName    String
-  generatedDate DateTime   @default(now())
-  type          ReportType
+model Sale {
+  id           Int      @id @default(autoincrement())
+  itemId       Int
+  quantity     Int
+  amount       Float
+  customerName String
+  date         String
+  item         Item     @relation(fields: [itemId], references: [id])
 
-  generatedBy   User   @relation(fields: [generatedById], references: [id])
-  generatedById String
-
-  purchaseReport  PurchaseReport?
-  salesInvoice    SalesInvoice?
-  inventoryReport InventoryReport?
-}
-
-model PurchaseReport {
-  reportId  String @id
-  totalItem Int
-  totalCost Float
-
-  report Report @relation(fields: [reportId], references: [id])
+  @@map("sales")
 }
 
 model SalesInvoice {
-  reportId  String @id
-  totalItem Int
-  totalCost Float
+  id                String        @id @default(uuid())
+  invoiceNo        String        @unique
+  invoiceTo        String
+  date             String
+  customerName     String
+  paymentMode      PaymentMode
+  consignee        String?
+  deliveryNote     String?
+  destination      String?
+  dispatchedThrough String?
+  termsOfDelivery  String?
+  items            SalesInvoiceItem[]
+  totalAmount      Float
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  report Report @relation(fields: [reportId], references: [id])
+  @@map("sales_invoices")
 }
 
-model InventoryReport {
-  reportId   String @id
-  reportName String
+model SalesInvoiceItem {
+  id            String       @id @default(uuid())
+  invoiceId     String
+  itemId        Int
+  description   String
+  quantity      Int
+  rate          Float
+  amount        Float
+  invoice       SalesInvoice @relation(fields: [invoiceId], references: [id])
+  item          Item         @relation("ItemToSalesInvoiceItem", fields: [itemId], references: [id])
 
-  report Report @relation(fields: [reportId], references: [id])
+  @@map("sales_invoice_items")
 }
 
-enum ReportType {
-  PURCHASE
-  SALES
-  INVENTORY
+model User {
+  id             Int      @id @default(autoincrement())
+  name           String
+  username       String   @unique
+  email          String   @unique
+  password       String
+  role           String   @default("USER")
+  profilePicture String?  // Make sure this field exists
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Issue {
+  id           String      @id @default(uuid())
+  employeeId   String
+  employeeName String
+  contact      String
+  itemsCount   Int
+  status       String      @default("ISSUED") // ISSUED, RETURNED
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  items        IssueItem[]
+
+  @@map("issues")
+}
+
+model IssueItem {
+  id           String    @id @default(uuid())
+  issueId      String
+  itemId       Int
+  itemName     String
+  serialNumber String
+  issueDate    String
+  returnDate   String?   // Stores the return date
+  status       String    @default("ISSUED") // ISSUED, RETURNED
+  issue        Issue     @relation(fields: [issueId], references: [id])
+  item         Item      @relation("ItemToIssueItem", fields: [itemId], references: [id])
+
+  @@unique([issueId, itemId])
+  @@map("issue_items")
 }

@@ -1,61 +1,71 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import prisma from "@/lib/prisma";
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
     try {
-        const body = await req.json().catch(() => null);
-        if (!body) {
-            return NextResponse.json({ message: "Invalid JSON" }, { status: 400 });
-        }
-
+        const body = await request.json();
         const { username, password } = body;
 
         if (!username || !password) {
-            return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
+            return NextResponse.json(
+                { error: "Username and password are required" },
+                { status: 400 }
+            );
         }
 
-        // Find user in the database by username
+        // Find user by username
         const user = await prisma.user.findUnique({
             where: { username }
         });
 
         if (!user) {
-            return NextResponse.json({ message: "User not found" }, { status: 404 });
+            return NextResponse.json(
+                { error: "Invalid credentials" },
+                { status: 401 }
+            );
         }
 
-        // Compare password
+        // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-        }
 
-        // Get JWT secret
-        const secretKey = process.env.JWT_SECRET;
-        if (!secretKey) {
-            console.error("JWT_SECRET is missing!");
-            return NextResponse.json({ message: "Server error" }, { status: 500 });
+        if (!isPasswordValid) {
+            return NextResponse.json(
+                { error: "Invalid credentials" },
+                { status: 401 }
+            );
         }
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user.id, username: user.username },
-            secretKey,
-            { expiresIn: "1h" }
+            { 
+                userId: user.id,
+                username: user.username,
+                role: user.role 
+            },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '24h' }
         );
 
+        // Remove password from response
+        const { password: _, ...userWithoutPassword } = user;
+
         return NextResponse.json({
+            success: true,
             message: "Login successful",
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                username: user.username,
-            },
+            user: userWithoutPassword,
+            token
         });
+
     } catch (error) {
-        console.error("Error during login:", error);
-        return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+        console.error("Login error:", error);
+        return NextResponse.json(
+            { 
+                success: false,
+                error: "Login failed" 
+            },
+            { status: 500 }
+        );
     }
 }

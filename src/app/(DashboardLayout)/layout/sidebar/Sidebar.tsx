@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 
 interface ItemType {
   isMobileSidebarOpen: boolean;
-  onSidebarClose: (event: React.MouseEvent<HTMLElement>) => void;
+  onSidebarClose: () => void;
   isSidebarOpen: boolean;
 }
 
@@ -81,7 +81,7 @@ const MSidebar = ({
             >
               {renderLogo()}
               <Box>
-                <SidebarItems />
+                <SidebarItems toggleMobileSidebar={onSidebarClose} />
               </Box>
             </Sidebar>
           </Box>
@@ -110,7 +110,7 @@ const MSidebar = ({
           showProfile={false}
         >
           {renderLogo()}
-          <SidebarItems />
+          <SidebarItems toggleMobileSidebar={onSidebarClose} />
         </Sidebar>
       </Box>
     </Drawer>

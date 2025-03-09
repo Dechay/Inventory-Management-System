@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, ChangeEvent } from "react";
+import React, { useState, ChangeEvent, useEffect } from "react";
 import {
   Box,
   Avatar,
@@ -10,6 +10,7 @@ import {
   IconButton,
   InputAdornment,
   Collapse,
+  Alert,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import Visibility from "@mui/icons-material/Visibility";
@@ -33,6 +34,7 @@ const ProfilePage = () => {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
+    username: "",
     currentPassword: "",
   });
 
@@ -42,6 +44,52 @@ const ProfilePage = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        // Get user data from localStorage
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          setError('User not logged in');
+          return;
+        }
+
+        const user = JSON.parse(userData);
+        
+        // Set initial profile data from localStorage
+        setProfileData({
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          currentPassword: ''
+        });
+
+        // Fetch latest profile data including profile picture
+        // const response = await fetch('/api/profile?username=${user.username}');
+        // if (!response.ok) throw new Error('Failed to fetch profile');
+        
+        // const data = await response.json();
+        // setProfilePicture(data.profilePicture);
+        
+        // // Update profile data with latest from server
+        // setProfileData(prev => ({
+        //   ...prev,
+        //   name: data.name,
+        //   email: data.email
+        // }));
+      } catch (error) {
+        console.error('Error:', error);
+        setError('Failed to load profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleEditToggle = (field: "name" | "email") => {
     setIsEditing((prev) => ({ ...prev, [field]: !prev[field] }));
@@ -51,25 +99,33 @@ const ProfilePage = () => {
     setProfileData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setProfilePicture(imageUrl);
+  const handleSave = async () => {
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profileData.name,
+          email: profileData.email,
+          profilePicture,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update profile');
+      
+      alert('Profile updated successfully!');
+      setIsEditing({
+        name: false,
+        email: false,
+        password: false,
+      });
+    } catch (error) {
+      alert('Failed to update profile. Please try again.');
+      console.error('Error:', error);
     }
   };
 
-  const handleSave = () => {
-    console.log("Profile data saved:", profileData);
-    alert("Profile saved successfully!");
-    setIsEditing({
-      name: false,
-      email: false,
-      password: false,
-    });
-  };
-
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (newPassword !== confirmNewPassword) {
       alert("New passwords do not match. Please try again.");
       return;
@@ -78,11 +134,65 @@ const ProfilePage = () => {
       alert("Password must be at least 8 characters long.");
       return;
     }
-    alert("Password changed successfully!");
-    setShowChangePassword(false);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmNewPassword("");
+
+    try {
+      const response = await fetch('/api/profile/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to change password');
+      }
+
+      alert('Password changed successfully!');
+      setShowChangePassword(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to change password');
+      console.error('Error:', error);
+    }
+  };
+
+  const handlePictureChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('username', profileData.username);
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to upload image');
+        }
+
+        const data = await response.json();
+        setProfilePicture(data.url);
+
+        // Force a re-render of the Avatar
+        const avatar = document.querySelector('img') as HTMLImageElement;
+        if (avatar) {
+          avatar.src = data.url + '?t=' + new Date().getTime();
+        }
+
+        alert('Profile picture updated successfully');
+      } catch (error) {
+        console.error('Upload error:', error);
+        alert('Failed to upload image. Please try again.');
+      }
+    }
   };
 
   return (
@@ -93,7 +203,11 @@ const ProfilePage = () => {
         </IconButton>
 
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <Avatar src={profilePicture} alt="Profile Picture" sx={{ width: 120, height: 120, marginBottom: 2 }} />
+          <Avatar 
+            src={profilePicture + '?t=' + new Date().getTime()}
+            alt="Profile Picture" 
+            sx={{ width: 120, height: 120, marginBottom: 2 }} 
+          />
           <input accept="image/*" id="profile-picture-upload" type="file" style={{ display: "none" }} onChange={handlePictureChange} />
           <label htmlFor="profile-picture-upload">
             <Button variant="outlined" component="span" sx={{ mb: 3 }}>
